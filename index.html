@@ -1,0 +1,501 @@
+ <!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>생활한자 완전정복 퀴즈 (랜덤)</title>
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --accent-color: #e74c3c;
+            --bg-color: #f5f6fa;
+            --card-bg: #ffffff;
+            --text-color: #2d3436;
+        }
+
+        body {
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            margin-bottom: 30px;
+            text-align: center;
+            font-size: 2rem;
+            word-break: keep-all;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            padding-bottom: 50px;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: transform 0.3s ease;
+            opacity: 0.5; /* 기본적으로 흐리게 처리 */
+            pointer-events: none; /* 입력 방지 */
+            display: none; /* 초기에는 숨김 */
+        }
+
+        /* 현재 활성화된 카드 */
+        .card.active {
+            opacity: 1;
+            transform: scale(1.02);
+            pointer-events: auto;
+            border: 2px solid var(--primary-color);
+            display: flex; /* 활성화되면 보임 */
+        }
+
+        /* 이미 푼 카드 (아래에 쌓임) */
+        .card.completed {
+            opacity: 0.6;
+            background-color: #ecf0f1;
+            display: flex;
+            pointer-events: none;
+        }
+
+        .hanja {
+            font-size: 4rem;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: var(--primary-color);
+            text-align: center;
+            line-height: 1.2;
+        }
+
+        .input-group {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 15px;
+            font-size: 1.2rem;
+            border: 2px solid #bdc3c7;
+            border-radius: 10px;
+            text-align: center;
+            outline: none;
+            box-sizing: border-box;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--primary-color);
+        }
+
+        .result-area {
+            margin-top: 15px;
+            text-align: center;
+            display: none;
+        }
+
+        .meaning {
+            font-size: 1.1rem;
+            color: #636e72;
+            margin-top: 5px;
+            word-break: keep-all;
+        }
+
+        .correct-answer {
+            color: #27ae60;
+            font-weight: bold;
+            font-size: 1.5rem;
+            margin-bottom: 5px;
+        }
+
+        .wrong-answer {
+            color: var(--accent-color);
+            font-weight: bold;
+            font-size: 1.5rem;
+            margin-bottom: 5px;
+        }
+
+        .status-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 5px;
+            background: #dfe6e9;
+            z-index: 1000;
+        }
+
+        .progress {
+            height: 100%;
+            background: var(--accent-color);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .guide-text {
+            font-size: 0.9rem;
+            color: #95a5a6;
+            margin-top: 10px;
+        }
+
+        /* 모바일 대응 */
+        @media (max-width: 480px) {
+            .hanja { font-size: 3rem; }
+            .card { padding: 20px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="status-bar"><div class="progress" id="progress"></div></div>
+    
+    <h1>생활한자 완전정복 (랜덤)</h1>
+
+    <div class="container" id="quiz-container">
+        </div>  
+
+    <script>
+        // 퀴즈 데이터
+        const quizData = [
+            // 사주 한자어  추가(주역, 서경, 풍수지리, 길화흉복 )
+            { hanja: "周易", reading: "주역", meaning: "유교 경전. 만물의 변화 원리를 설명함" },
+            { hanja: "書經", reading: "서경", meaning: "유교 경전. 고대 중국의 정치를 기록함" },
+            { hanja: "風水地理", reading: "풍수지리", meaning: "산과 물의 형세를 보아 길흉을 따지는 설" },
+            { hanja: "吉凶禍福", reading: "길흉화복", meaning: "길함, 흉함, 재앙, 복 (사람의 운수)" },
+            { hanja: "陰陽五行", reading: "음양오행", meaning: "음양과 오행. 우주의 변화 원리 오행에는 화, 수, 목, 금, 토 가 있다." },
+            { hanja: "陰氣", reading: "음기", meaning: "수동적, 추위, 어둠, 습함, 부드러운 것" },
+            { hanja: "陽氣", reading: "양기", meaning: "능동적, 더위, 밝음, 건조함, 굳은 것" },
+            { hanja: "天干", reading: "천간", meaning: "하늘의 기운을 상징하는 10가지 (갑을병정...)" },
+            { hanja: "地支", reading: "지지", meaning: "땅의 기운을 상징하는 12가지 (자축인묘...)" },
+            { hanja: "干支", reading: "간지", meaning: "천간과 지지를 아울러 이르는 말" },
+            { hanja: "十干", reading: "십간", meaning: "10개의 천간" },
+            { hanja: "十二支", reading: "십이지", meaning: "12개의 지지 (띠 동물)" },
+            { hanja: "甲", reading: "갑", meaning: "천간의 첫째" },
+            { hanja: "乙", reading: "을", meaning: "천간의 둘째" },
+            { hanja: "丙", reading: "병", meaning: "천간의 셋째" },
+            { hanja: "丁", reading: "정", meaning: "천간의 넷째" },
+            { hanja: "戊", reading: "무", meaning: "천간의 다섯째" },
+            { hanja: "己", reading: "기", meaning: "천간의 여섯째" },
+            { hanja: "庚", reading: "경", meaning: "천간의 일곱째" },
+            { hanja: "辛", reading: "신", meaning: "천간의 여덟째" },
+            { hanja: "壬", reading: "임", meaning: "천간의 아홉째" },
+            { hanja: "癸", reading: "계", meaning: "천간의 열째" },
+            { hanja: "子", reading: "자", meaning: "지지 첫째 (쥐)" },
+            { hanja: "丑", reading: "축", meaning: "지지 둘째 (소)" },
+            { hanja: "寅", reading: "인", meaning: "지지 셋째 (호랑이)" },
+            { hanja: "卯", reading: "묘", meaning: "지지 넷째 (토끼)" },
+            { hanja: "辰", reading: "진", meaning: "지지 다섯째 (용)" },
+            { hanja: "巳", reading: "사", meaning: "지지 여섯째 (뱀)" },
+            { hanja: "午", reading: "오", meaning: "지지 일곱째 (말)" },
+            { hanja: "未", reading: "미", meaning: "지지 여덟째 (양)" },
+            { hanja: "申", reading: "신", meaning: "지지 아홉째 (원숭이)" },
+            { hanja: "酉", reading: "유", meaning: "지지 열째 (닭)" },
+            { hanja: "戌", reading: "술", meaning: "지지 열한째 (개)" },
+            { hanja: "亥", reading: "해", meaning: "지지 열두째 (돼지)" },
+            { hanja: "回甲", reading: "회갑", meaning: "61회차 생일 (갑으로 돌아옴)" },
+            { hanja: "還甲", reading: "환갑", meaning: "61회차 생일 (회갑과 같음)" },
+            { hanja: "子正", reading: "자정", meaning: "자시의 한가운데 (밤 12시)" },
+            { hanja: "正午", reading: "정오", meaning: "오시의 한가운데 (낮 12시)" },
+
+            // 매체 한자어 제외(불출마, 예능, 연예)
+            { hanja: "政黨", reading: "정당", meaning: "정치적인 주의나 주장이 같은 사람들의 무리" },
+            { hanja: "與野", reading: "여야", meaning: "여당과 야당" },
+            { hanja: "與黨", reading: "여당", meaning: "정부 편에서 정책을 지지하는 정당" },
+            { hanja: "野黨", reading: "야당", meaning: "재야에 있는 정당 (정권을 잡지 못한 당)" },
+            { hanja: "與小野大", reading: "여소야대", meaning: "여당 의석이 작고 야당 의석이 큰 상태" },
+            { hanja: "下野", reading: "하야", meaning: "관직에서 물러나 시골(들)로 내려감" },
+            { hanja: "彈劾", reading: "탄핵", meaning: "죄상을 들어서 꾸짖음 (파면 제도)" },
+            { hanja: "獨裁", reading: "독재", meaning: "혼자서 결정함 (민주적 절차 무시)" },
+            { hanja: "輿論", reading: "여론", meaning: "수레(대중)의 논의, 공통된 의견" },
+            { hanja: "全體主義", reading: "전체주의", meaning: "개인보다 집단(전체)을 우선하는 사상" },
+            { hanja: "民主主義", reading: "민주주의", meaning: "국가의 주권이 국민에게 있다는 사상" },
+            { hanja: "選擧", reading: "선거", meaning: "가려서(뽑아서) 들어올림" },
+            { hanja: "投票", reading: "투표", meaning: "표를 던짐" },
+            { hanja: "出馬", reading: "출마", meaning: "말을 타고 나감 (선거 입후보)" },
+            { hanja: "落馬", reading: "낙마", meaning: "말에서 떨어짐 (선거 낙선)" },
+            { hanja: "公薦", reading: "공천", meaning: "정당에서 후보를 공식적으로 추천함" },
+            { hanja: "比例代表", reading: "비례대표", meaning: "득표수에 비례하여 뽑힌 대표" },
+            { hanja: "補闕選擧", reading: "보궐선거", meaning: "궐석(빠진 자리)을 기워 갚는(채우는) 선거" },
+            { hanja: "闕席", reading: "궐석", meaning: "빠진(빈) 자리" },
+            { hanja: "武運", reading: "무운", meaning: "전쟁에서 이기는 운수" },
+            { hanja: "頂上會談", reading: "정상회담", meaning: "나라의 우두머리(정상)들이 모여 하는 회의" },
+            { hanja: "頂上", reading: "정상", meaning: "맨 꼭대기 (우두머리)" },
+            { hanja: "示威", reading: "시위", meaning: "위력을 보임" },
+            { hanja: "聲討", reading: "성토", meaning: "소리쳐 꾸짖음 (죄를 토벌함)" },
+            { hanja: "街頭示威", reading: "가두시위", meaning: "길거리에서 하는 시위" },
+            { hanja: "公聽會", reading: "공청회", meaning: "공적으로 의견을 듣는 모임" },
+            { hanja: "聽聞會", reading: "청문회", meaning: "듣고 묻는 모임 (자격 심사 등)" },
+            { hanja: "旣得權", reading: "기득권", meaning: "이미 얻은 권리" },
+            { hanja: "剝奪感", reading: "박탈감", meaning: "벗겨지고 빼앗긴 느낌" },
+            { hanja: "間諜", reading: "간첩", meaning: "사이에서 염탐하는 사람" },
+            { hanja: "赤字", reading: "적자", meaning: "붉은 글자 (지출>수입)" },
+            { hanja: "黑字", reading: "흑자", meaning: "검은 글자 (수입>지출)" },
+            { hanja: "大恐慌", reading: "대공황", meaning: "크게 두렵고 다급한 경제 혼란" },
+            { hanja: "雇用", reading: "고용", meaning: "품을 사서 씀" },
+            { hanja: "解雇", reading: "해고", meaning: "고용 계약을 품 (자름)" },
+            { hanja: "民營化", reading: "민영화", meaning: "나라 운영을 민간 경영으로 바꿈" },
+            { hanja: "不動產", reading: "부동산", meaning: "움직여 옮길 수 없는 재산 (토지, 건물)" },
+            { hanja: "動產", reading: "동산", meaning: "움직일 수 있는 재산" },
+            { hanja: "放送", reading: "방송", meaning: "놓아 보냄 (전파를 내보냄)" },
+
+
+            // 의식주 한자어 
+            // 추가(당, 실, 가, 근조화환)
+            // 제외(의류, 의상, 의관, 탈의실, 백의민족, 금의환향, 군복, 라면, 해장탕, 설농탕, 선농단, 친경례, 냉동고, 선풍, 부인, 부조금, 부의금, 조의금, 지방, 사이비, 이단, 편의점)
+            { hanja: "衣食住", reading: "의식주", meaning: "옷, 음식, 집 (생활 기본 3요소)" },
+            { hanja: "衣服", reading: "의복", meaning: "옷 (총칭) 옷의, 옷복 자를 외워야할듯요?" },
+            { hanja: "洋襪", reading: "양말", meaning: "서양의 버선" },
+            { hanja: "高捧", reading: "고봉", meaning: "높이 받들어 올림 (수북하게 담은 밥)" },
+            { hanja: "神仙爐", reading: "신선로", meaning: "신선의 화로 (음식 이름)" },
+            { hanja: "五味子", reading: "오미자", meaning: "다섯 가지 맛이 나는 씨앗" },
+            { hanja: "居室", reading: "거실", meaning: "거주하는 방 (평소 지내는 곳)" },
+            { hanja: "寢室", reading: "침실", meaning: "잠자는 방" },
+            { hanja: "化粧室", reading: "화장실", meaning: "단장하는 방 (변소)" },
+            { hanja: "窓門", reading: "창문", meaning: "창과 문" },
+            { hanja: "冷藏庫", reading: "냉장고", meaning: "차갑게 저장하는 창고" },
+            { hanja: "洗濯機", reading: "세탁기", meaning: "씻고 빠는 기계" },
+            { hanja: "洗手", reading: "세수", meaning: "손이나 얼굴을 씻음" },
+            { hanja: "扇風機", reading: "선풍기", meaning: "부채 바람을 일으키는 기계" },
+            { hanja: "乾電池", reading: "건전지", meaning: "마른 전지" },
+            { hanja: "酒煎子", reading: "주전자", meaning: "술을 데우는 그릇" },
+            { hanja: "匙箸", reading: "시저", meaning: "숟가락과 젓가락 (수저)" },
+            { hanja: "竹夫人", reading: "죽부인", meaning: "대나무 부인 (여름 침구)" },
+            { hanja: "謹弔", reading: "근조", meaning: "삼가 조의를 표함" },
+            { hanja: "訃告", reading: "부고", meaning: "죽음을 알림" },
+            { hanja: "家", reading: "가", meaning: "집, 가문" },
+            { hanja: "堂", reading: "당", meaning: "집, 마루" },
+            { hanja: "室", reading: "실", meaning: "방, 집" },
+            { hanja: "謹弔花環", reading: "근조화환", meaning: "삼가 조의를 표하는 꽃" },
+            
+
+            // 지명 한자어
+            //추가 (마곡,개울 포, 나루 진)
+            //제외 (반포, 염창, 이태원, 잠실, 미아, 의정부)
+            { hanja: "地名", reading: "지명", meaning: "땅의 이름" },
+            { hanja: "浦", reading: "포", meaning: "개울, 물가 (개울 포)" },
+            { hanja: "津", reading: "진", meaning: "나루 (나루 진)" },
+            { hanja: "松坡", reading: "송파", meaning: "소나무 언덕" },
+            { hanja: "可樂", reading: "가락", meaning: "가히 살기 좋은 곳" },
+            { hanja: "廣津", reading: "광진", meaning: "넓은 나루 (광나루)" },
+            { hanja: "鷺梁津", reading: "노량진", meaning: "백로가 노니는 나루" },
+            { hanja: "漢江鎭", reading: "한강진", meaning: "한강의 군영/나루" },
+            { hanja: "麻浦", reading: "마포", meaning: "삼밭 나루 (삼개)" },
+            { hanja: "麻谷", reading: "마곡", meaning: "삼(마)이 나는 골짜기" },
+            { hanja: "鍾閣", reading: "종각", meaning: "종을 달아둔 집 (보신각)" },
+            { hanja: "鍾路", reading: "종로", meaning: "종이 있는 거리" },
+            { hanja: "廣興倉", reading: "광흥창", meaning: "넓게 일으키는 창고 (미곡 창고)" },
+            { hanja: "東氷庫", reading: "동빙고", meaning: "동쪽 얼음 창고" },
+            { hanja: "西氷庫", reading: "서빙고", meaning: "서쪽 얼음 창고" },
+            { hanja: "舍堂", reading: "사당", meaning: "집(사당)이 있던 곳" },
+            { hanja: "二村", reading: "이촌", meaning: "두 마을 혹은 옮긴(移) 마을" },
+            { hanja: "新村", reading: "신촌", meaning: "새로 생긴 마을" },
+            { hanja: "石村", reading: "석촌", meaning: "돌이 많은 마을" },
+            { hanja: "良才", reading: "양재", meaning: "어질고 재주 있는 사람이 사는 곳" },
+            { hanja: "會賢", reading: "회현", meaning: "어진 사람들이 모이는 곳" },
+            { hanja: "九老", reading: "구로", meaning: "아홉 노인이 장수한 곳" },
+            { hanja: "驛三", reading: "역삼", meaning: "역 세 개가 있던 곳" },            
+            { hanja: "京畿", reading: "경기", meaning: "서울(경)과 그 주변(기)" },
+            { hanja: "江原", reading: "강원", meaning: "강릉과 원주" },
+            { hanja: "忠淸", reading: "충청", meaning: "충주와 청주" },
+            { hanja: "全羅", reading: "전라", meaning: "전주와 나주" },
+            { hanja: "慶尙", reading: "경상", meaning: "경주와 상주" },
+            { hanja: "安城", reading: "안성", meaning: "편안한 성" },
+            { hanja: "天安", reading: "천안", meaning: "하늘 아래 편안한 곳" },
+            
+
+            // 건물/문화재 한자어1
+            //추가
+            //제외 (광화문, 서삼릉, 선정릉, 태강릉)
+            { hanja: "宮闕", reading: "궁궐", meaning: "임금이 사는 집과 대궐 문" },
+            { hanja: "正殿", reading: "정전", meaning: "가장 중심이 되는 전각" },
+            { hanja: "便殿", reading: "편전", meaning: "왕이 평소 업무를 보는 편안한 전각" },
+            { hanja: "寢殿", reading: "침전", meaning: "왕과 왕비가 자는 전각" },
+            { hanja: "東宮", reading: "동궁", meaning: "세자가 머무는 궁 (동쪽)" },
+            { hanja: "春宮", reading: "춘궁", meaning: "동궁의 다른 이름 (봄)" },
+            { hanja: "景福宮", reading: "경복궁", meaning: "큰 복을 누리는 궁" },
+            
+            { hanja: "昌德宮", reading: "창덕궁", meaning: "덕을 창성하게 하는 궁" },
+            { hanja: "昌慶宮", reading: "창경궁", meaning: "경사가 창성한 궁" },
+            { hanja: "德壽宮", reading: "덕수궁", meaning: "덕으로 장수하는 궁" },
+            { hanja: "慶熙宮", reading: "경희궁", meaning: "경사가 빛나는 궁" },
+            { hanja: "都城", reading: "도성", meaning: "도읍을 둘러싼 성" },
+            { hanja: "四大門", reading: "사대문", meaning: "도성의 네 대문" },
+            { hanja: "興仁之門", reading: "흥인지문", meaning: "동대문 (인을 일으킴)" },
+            { hanja: "崇禮門", reading: "숭례문", meaning: "남대문 (예를 숭상함)" },
+            { hanja: "肅靖門", reading: "숙정문", meaning: "북대문 (엄숙하고 편안함)" },
+            { hanja: "宗廟", reading: "종묘", meaning: "왕실 조상을 모신 사당" },
+            { hanja: "社稷壇", reading: "사직단", meaning: "토지신(사)과 곡식신(직) 제단" },
+            { hanja: "王陵", reading: "왕릉", meaning: "왕의 무덤" },
+            
+            // 건물/문화재 한자어2
+            { hanja: "不", reading: "불", meaning: "아니 (낙제)" },
+            { hanja: "順", reading: "순", meaning: "순할 (통과)" },
+            { hanja: "八不出", reading: "팔불출", meaning: "어리석은 사람" },
+            { hanja: "雨期", reading: "우기", meaning: "비가 오는 시기" },
+            { hanja: "城郭", reading: "성곽", meaning: "성과 곽(둘레)" },
+            { hanja: "垓子", reading: "해자", meaning: "성 주위의 도랑(못)" },
+            { hanja: "木柵", reading: "목책", meaning: "나무 울타리" },
+            { hanja: "土城", reading: "토성", meaning: "흙으로 쌓은 성" },
+            { hanja: "山城", reading: "산성", meaning: "산에 쌓은 성" },
+            { hanja: "邑城", reading: "읍성", meaning: "고을을 둘러싼 성" },
+            { hanja: "書院", reading: "서원", meaning: "선비들이 공부하던 사립 교육기관" },
+            { hanja: "寺刹", reading: "사찰", meaning: "절 (승려가 도를 닦는 곳)" },
+            { hanja: "大雄殿", reading: "대웅전", meaning: "석가모니불을 모신 큰 전각" },
+            { hanja: "極樂殿", reading: "극락전", meaning: "아미타불(극락)을 모신 전각" },
+            { hanja: "彌勒殿", reading: "미륵전", meaning: "미륵불을 모신 전각" },
+            { hanja: "寂滅寶宮", reading: "적멸보궁", meaning: "부처님 진신사리를 모신 궁 (불상 없음)" },
+            { hanja: "佛國寺", reading: "불국사", meaning: "부처의 나라 절" },
+            { hanja: "多寶塔", reading: "다보탑", meaning: "다보여래의 탑" },
+            { hanja: "釋迦塔", reading: "석가탑", meaning: "석가여래의 탑" },
+            { hanja: "無影塔", reading: "무영탑", meaning: "그림자가 없는 탑 (석가탑 별칭)" },
+            { hanja: "石窟庵", reading: "석굴암", meaning: "돌굴 암자" },
+
+            // 감정 한자어
+            { hanja: "感情", reading: "감정", meaning: "느껴서 일어나는 마음" },
+            { hanja: "理性", reading: "이성", meaning: "이치에 따라 판단하는 성품" },
+            { hanja: "喜怒哀樂", reading: "희로애락", meaning: "기쁨, 노여움, 슬픔, 즐거움" },
+            { hanja: "中庸", reading: "중용", meaning: "치우치지 않는 바른 길" },
+            { hanja: "未練", reading: "미련", meaning: "익숙하지 못함, 깨끗이 잊지 못함" },
+            { hanja: "斷腸", reading: "단장", meaning: "창자가 끊어질 듯한 슬픔" },
+            { hanja: "拍掌大笑", reading: "박장대소", meaning: "손뼉 치며 크게 웃음" },
+            { hanja: "破顔大笑", reading: "파안대소", meaning: "얼굴을 활짝 펴고 크게 웃음" },
+            { hanja: "抱腹絶倒", reading: "포복절도", meaning: "배를 잡고 넘어질 정도로 웃음" },
+            { hanja: "腰折腹痛", reading: "요절복통", meaning: "허리가 꺾이고 배가 아플 정도로 웃음" },
+            { hanja: "念頭", reading: "염두", meaning: "생각의 시초, 마음 속" },
+            { hanja: "反芻", reading: "반추", meaning: "되새김질 (돌이켜 생각함)" },
+            { hanja: "寒心", reading: "한심", meaning: "마음이 차가움 (딱하거나 기막힘)" },
+            { hanja: "熱心", reading: "열심", meaning: "마음이 뜨거움 (어떤 일에 정성을 다함)" }
+        ];
+
+        // 배열 섞기 함수 (Fisher-Yates Shuffle)
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]]; // 요소 교환
+            }
+            return array;
+        }
+
+        const container = document.getElementById('quiz-container');
+        const progressBar = document.getElementById('progress');
+        let currentCardIndex = 0;
+
+        // 초기화
+        function init() {
+            // 퀴즈 데이터를 랜덤하게 섞기
+            shuffleArray(quizData);
+
+            // 섞인 데이터로 카드 생성
+            quizData.forEach((item, index) => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.dataset.index = index;
+                if (index === 0) card.classList.add('active');
+
+                card.innerHTML = `
+                    <div class="hanja">${item.hanja}</div>
+                    <div class="input-group">
+                        <input type="text" placeholder="음(소리)을 입력하세요" 
+                               onkeydown="handleKeyDown(event, ${index})" 
+                               autocomplete="off">
+                    </div>
+                    <div class="result-area" id="result-${index}">
+                        <div class="correct-answer">정답: ${item.reading}</div>
+                        <div class="meaning">${item.meaning}</div>
+                        <div class="guide-text">엔터를 눌러 다음으로 이동</div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+            
+            // 첫 번째 입력창에 포커스
+            setTimeout(() => {
+                const firstInput = document.querySelector('.card.active input');
+                if(firstInput) firstInput.focus();
+            }, 100);
+        }
+
+        function handleKeyDown(event, index) {
+            if (event.key === 'Enter') {
+                const input = event.target;
+                const resultArea = document.getElementById(`result-${index}`);
+                const card = input.closest('.card');
+                const correctAnswer = quizData[index].reading.replace(/\s+/g, ''); // 공백 제거 비교
+                const userAnswer = input.value.trim().replace(/\s+/g, '');
+
+                // 이미 답을 확인한 상태라면 다음 문제로 이동
+                if (resultArea.style.display === 'block') {
+                    moveToNext(index);
+                    return;
+                }
+
+                // 정답 확인 로직
+                resultArea.style.display = 'block';
+                input.readOnly = true; // 수정 불가
+
+                const answerDiv = resultArea.querySelector('.correct-answer');
+                
+                if (userAnswer === correctAnswer) {
+                    answerDiv.innerHTML = `⭕ 정답: ${quizData[index].reading}`;
+                    answerDiv.className = 'correct-answer';
+                    card.style.borderColor = '#27ae60';
+                } else {
+                    answerDiv.innerHTML = `❌ 정답: ${quizData[index].reading} <br><span style="font-size:1rem; color:#95a5a6">(입력: ${input.value})</span>`;
+                    answerDiv.className = 'wrong-answer';
+                    card.style.borderColor = '#e74c3c';
+                }
+
+                updateProgress();
+            }
+        }
+
+        function moveToNext(currentIndex) {
+            const currentCard = container.children[currentIndex];
+            const nextCard = container.children[currentIndex + 1];
+
+            currentCard.classList.remove('active');
+            currentCard.classList.add('completed');
+
+            if (nextCard) {
+                nextCard.classList.add('active');
+                
+                // 스크롤 이동
+                nextCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                
+                // 다음 입력창 포커스
+                const nextInput = nextCard.querySelector('input');
+                if (nextInput) nextInput.focus();
+                
+                currentCardIndex++;
+            } else {
+                alert('모든 문제를 풀었습니다! 고생하셨습니다.');
+            }
+        }
+
+        function updateProgress() {
+            const total = quizData.length;
+            const completed = document.querySelectorAll('.result-area[style*="block"]').length;
+            const percentage = (completed / total) * 100;
+            progressBar.style.width = percentage + '%';
+        }
+
+        init();
+    </script>
+</body>
+</html>
